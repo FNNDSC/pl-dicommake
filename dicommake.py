@@ -8,7 +8,8 @@ from    chris_plugin        import chris_plugin, PathMapper
 from    typing              import Callable, Any, Iterable, Iterator
 from    pftag               import pftag
 from    pflog               import pflog
-from    concurrent.futures  import ThreadPoolExecutor
+from    concurrent.futures  import ThreadPoolExecutor, ProcessPoolExecutor
+from    functools           import partial
 import  os, sys
 import  pudb
 import  pydicom
@@ -32,7 +33,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '1.0.0'
+__version__ = '2.0.0'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -242,8 +243,10 @@ def allIO_checkInputLengths(d_IO:dict[str, list]) -> dict[str, Any]:
 def allIO_findExplicitly(options: Namespace, inputdir: Path, outputdir: Path) \
     -> dict[str, list[Path]]:
     """
-    Explicitly "unspool" a double PathMapper into lists, and return the
-    sorted lists.
+    Explicitly process a double PathMapper into lists, and return the
+    sorted lists. Lists are sorted so as to assure (hopefully) that
+    a given DICOM file lines up correctly with a given image file to
+    that is to serve as its embedded image.
 
     Args:
         options (Namespace): CLI options namespace
@@ -251,7 +254,8 @@ def allIO_findExplicitly(options: Namespace, inputdir: Path, outputdir: Path) \
         outputdir (Path): the plugin outputdir
 
     Returns:
-        dict[str, list[Path]]: a dictionary of sorted incoming and outgoing path lists.
+        dict[str, list[Path]]: a dictionary of sorted incoming and outgoing
+                               path lists.
     """
 
     d_ret:dict[str, list[Path]] = {
@@ -286,6 +290,16 @@ def allIO_findExplicitly(options: Namespace, inputdir: Path, outputdir: Path) \
     return d_ret
 
 def files_unspool(d_paths:dict[str, Any]) -> Iterator[tuple[Path, Path, Path]]:
+    """
+    This implements an Iterator over the lists passed in d_paths, and is ultimately
+    used as a mapper in the main method.
+
+    Args:
+        d_paths (dict[str, Any]): a dictionary of lists of files to process
+
+    Yields:
+        Iterator[tuple[Path, Path, Path]]: DICOM input, image input, and DICOM output
+    """
     for dcm_in, img_in, dcm_out in zip( d_paths['d_IO']['inputDCM'],
                                         d_paths['d_IO']['inputIMG'],
                                         d_paths['d_IO']['outputDCM']):
@@ -305,12 +319,29 @@ def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
     """
     return True if imgfile.stem == dcmfile.stem else False
 
-def imagePaths_process(dcm_in:Path, img_in:Path, dcm_out:Path) -> None:
+def imagePaths_process(*args) -> None:
+    """
+    The input *args is a tuple that contains three
+    file (Paths) to process. Since this method can
+    be called either from a ProcessPoolExecutor mapper
+    or directly, the try/catch is needed to correctly
+    unpack the arguments in either case.
+    """
+    try:
+        dcm_in:Path  = args[0][0]
+        img_in:Path  = args[0][1]
+        dcm_out:Path = args[0][2]
+    except:
+        dcm_in:Path  = args[0]
+        img_in:Path  = args[1]
+        dcm_out:Path = args[2]
+
     if imageNames_areSame(img_in, dcm_in):
         image:Image.Image       = Image.open(str(img_in))
         DICOM:pydicom.Dataset   = pydicom.dcmread(str(dcm_in))
-        LOG("Processing %s" % dcm_in)
+        LOG("Processing %s using %s" % (dcm_in.name, img_in.name))
         image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
+        LOG("Saved %s" % dcm_out)
 
 @chris_plugin(
     parser          = parser,
@@ -326,24 +357,36 @@ def imagePaths_process(dcm_in:Path, img_in:Path, dcm_out:Path) -> None:
 )
 def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
     """
+    The main entry point for this plugin/app. Mostly this function simply
+    decides whether or not to call the imagePaths_process() function in
+    series or in parallel.
 
-    :param options: non-positional arguments parsed by the parser given to @chris_plugin
-    :param inputdir: directory containing (read-only) input files
-    :param outputdir: directory where to write output files
+    Take a look at imagePaths_process() to better understand the logic.
+
+    Args:
+        options (Namespace): the CLI options
+        inputdir (Path): the input directory path containing data to process
+        outputdir (Path): the output directory where results are saved
+
+    Returns:
+        int: 0 here means success.
     """
-    pudb.set_trace()
     d_paths:dict[str, Any] = env_setupAndCheck(options, inputdir, outputdir)
     mapper: Iterator[tuple[Path, Path, Path]] = files_unspool(d_paths)
 
     if int(options.thread):
-        with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity(0))) as pool:
-            results: Iterator[None]     = pool.map(lambda t: imagePaths_process(*t), mapper)
+        # While the "thread" implies "threading", we actually use
+        # a ProcessPoolExecutor since the single threaded GIL actually
+        # does not perform python file loading/saving in parallel.
+        with ProcessPoolExecutor() as pool:
+            results: Iterator[None]     = pool.map(imagePaths_process, mapper)
 
         # raise any Exceptions which happened in threads
         for _ in results:
             pass
     else:
         for dcm_in, img_in, dcm_out in mapper:
+            pudb.set_trace()
             imagePaths_process(dcm_in, img_in, dcm_out)
 
     return 0
