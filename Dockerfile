@@ -1,3 +1,12 @@
+#
+# Build with:
+#     docker build -t localhost/fnndsc/pl-dicommake .
+#
+# If you're proxied:
+#     export PROXY=<whatever>
+#     docker build --build-arg http_proxy=$PROXY -t localhost/fnndsc/pl-dicommake .
+#
+#
 # Python version can be changed, e.g.
 # FROM python:3.8
 # FROM docker.io/fnndsc/conda:python3.10.2-cuda11.6.0
