@@ -5,9 +5,10 @@ from    pathlib             import Path
 from    argparse            import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 
 from    chris_plugin        import chris_plugin, PathMapper
-from    typing              import Callable, Any, Iterable
+from    typing              import Callable, Any, Iterable, Iterator
 from    pftag               import pftag
 from    pflog               import pflog
+from    concurrent.futures  import ThreadPoolExecutor
 import  os, sys
 import  pudb
 import  pydicom
@@ -15,7 +16,6 @@ os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 
 from    PIL                 import Image
 import  numpy               as      np
-
 from    loguru              import logger
 LOG             = logger.debug
 logger_format = (
@@ -71,6 +71,11 @@ parser.add_argument(  '--pftelDB',
                     default     = '',
                     type        = str,
                     help        = 'optional pftel server DB path')
+parser.add_argument("--thread",
+                    help        = "use threading to branch in parallel",
+                    dest        = 'thread',
+                    action      = 'store_true',
+                    default     = False)
 parser.add_argument('--version',
                     action      = 'version',
                     version     = f'%(prog)s {__version__}')
@@ -135,10 +140,85 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
+    """
+    Combine two Mappers and yield the combined results.
+
+    Args:
+        x (PathMapper): first set
+        y (PathMapper): second set
+
+    Yields:
+        Iterator[Iterable[tuple[Path, Path, Path, Path]]]: a quartuplet of paths
+    """
     for pair_x, pair_y in zip(x, y):
         input_x, output_x = pair_x
         input_y, output_y = pair_y
         yield input_x, output_x, input_y, output_y
+
+def tree2flat_path_mapping(inputdir:Path, outputdir:Path,
+                           input_glob:str, output_suffix:str = "")\
+    -> Iterator[tuple[Path, Path]]:
+    """
+    Collapses the outputdir to single location, not preserving the input
+    tree structure.
+
+    Args:
+        inputdir (Path): input directory path
+        outputdir (Path): output directory path
+        input_glob (str): input file search glob
+        output_suffix (str, optional): optional output suffix. Defaults to "".
+
+    Yields:
+        Iterator[tuple[Path, Path]]: A mapper
+    """
+    for input_file in inputdir.glob(input_glob):
+        output_file: Path = (outputdir / input_file.name).with_suffix(output_suffix)
+        yield input_file, output_file
+
+def tree2tree_path_mapping(inputdir: Path, outputdir: Path,
+                           input_glob: str, output_suffix:str = "")\
+    -> Iterator[tuple[Path, Path]]:
+    """
+    A thin fall-through to the default PathMapper
+
+    Args:
+        inputdir (Path): input directory path
+        outputdir (Path): output directory path
+        input_glob (str): input file search glob
+        output_suffix (str, optional): optional output suffix. Defaults to "".
+
+    Yields:
+        Iterator[tuple[Path, Path]]: A mapper
+    """
+    return iter(
+        PathMapper.file_mapper(
+            inputdir, outputdir, glob=input_glob, suffix=output_suffix
+        )
+    )
+
+def env_setupAndCheck(options: Namespace, inputdir: Path, outputdir: Path)\
+    -> dict[str, Any]:
+    """
+    Setup the "environment", i.e. generate lists of input and output
+    files to process. Also, check that the input lists have the same
+    length and return the paths and status to a caller.
+
+
+    Args:
+        options (Namespace): CLI options (needed to resolve output (sub) dir)
+        inputdir (Path): input directory path
+        outputdir (Path): output directory path
+
+    Returns:
+        dict[str, Any]: the status and dictionary of paths
+    """
+    d_paths:dict[str, Any] = \
+        allIO_checkInputLengths(
+            allIO_findExplicitly(options, inputdir, outputdir)
+        )
+    if not d_paths['status']:
+        LOG('Path length check failed! DICOM file list not equal length to IMG file list')
+    return d_paths
 
 def allIO_checkInputLengths(d_IO:dict[str, list]) -> dict[str, Any]:
     """
@@ -159,7 +239,7 @@ def allIO_checkInputLengths(d_IO:dict[str, list]) -> dict[str, Any]:
     }
     return d_check
 
-def allIO_unspool(options: Namespace, inputdir: Path, outputdir: Path) \
+def allIO_findExplicitly(options: Namespace, inputdir: Path, outputdir: Path) \
     -> dict[str, list[Path]]:
     """
     Explicitly "unspool" a double PathMapper into lists, and return the
@@ -174,25 +254,6 @@ def allIO_unspool(options: Namespace, inputdir: Path, outputdir: Path) \
         dict[str, list[Path]]: a dictionary of sorted incoming and outgoing path lists.
     """
 
-    def outputlocation_check(d_ret:dict[str, list[Path]]) -> dict[str, list[Path]]:
-        """
-        If an '--outputSubdir' has been set, replace the possibly deeply nested
-        output DICOM path with this value.
-
-        Args:
-            d_ret (dict[str, list[Path]]): the set of IO paths
-
-        Returns:
-            dict[str, list[Path]]: the edited outputDCM path
-        """
-        if len(options.outputSubDir):
-            d_ret['outputDCM']  = [outputdir / \
-                                   Path(options.outputSubDir)/x.name \
-                                    for x in d_ret['outputDCM']]
-            outputSubDir:Path   = outputdir / Path(options.outputSubDir)
-            outputSubDir.mkdir(parents = True, exist_ok = True)
-        return d_ret
-
     d_ret:dict[str, list[Path]] = {
         'inputDCM'          : [],
         'inputIMG'          : [],
@@ -203,10 +264,15 @@ def allIO_unspool(options: Namespace, inputdir: Path, outputdir: Path) \
     l_inputIMG:list         = []
     l_outputDCM:list        = []
     l_outputIMG:list        = []
+    Mapper:Callable[[Path, Path, str, str], Iterator[tuple[Path, Path]]] = tree2tree_path_mapping
+    if options.outputSubDir:
+        outputdir           = outputdir / Path(options.outputSubDir)
+        outputdir.mkdir(parents = True, exist_ok = True)
+        Mapper              = tree2flat_path_mapping
     mapperDCM: PathMapper   = \
-        PathMapper.file_mapper(inputdir, outputdir, glob=options.filterDCM)
+        Mapper(inputdir, outputdir, input_glob=options.filterDCM, output_suffix='.dcm')
     mapperIMG: PathMapper   = \
-        PathMapper.file_mapper(inputdir, outputdir, glob=options.filterIMG)
+        Mapper(inputdir, outputdir, input_glob=options.filterIMG, output_suffix='.dcm')
     for input_fileDCM, output_fileDCM, input_fileIMG, output_fileIMG in \
         doubly_map(mapperDCM, mapperIMG):
         l_inputDCM.append(input_fileDCM)
@@ -217,28 +283,13 @@ def allIO_unspool(options: Namespace, inputdir: Path, outputdir: Path) \
     d_ret['inputIMG']      = [Path(y) for y in sorted([str(x) for x in l_inputIMG])]
     d_ret['outputDCM']     = [Path(y) for y in sorted([str(x) for x in l_outputDCM])]
     d_ret['outputIMG']     = [Path(y) for y in sorted([str(x) for x in l_outputIMG])]
-    d_ret                  = outputlocation_check(d_ret)
     return d_ret
 
-def env_setupAndCheck(options: Namespace, inputdir: Path, outputdir: Path) \
-     -> dict[str, Any]:
-    """_summary_
-
-    Args:
-        options (Namespace): _description_
-        inputdir (Path): _description_
-        outputdir (Path): _description_
-
-    Returns:
-        bool: _description_
-    """
-    d_paths:dict[str, Any] = \
-        allIO_checkInputLengths(
-            allIO_unspool(options, inputdir, outputdir)
-        )
-    if not d_paths['status']:
-        LOG('Path length check failed! DICOM file list not equal length to IMG file list')
-    return d_paths
+def files_unspool(d_paths:dict[str, Any]) -> Iterator[tuple[Path, Path, Path]]:
+    for dcm_in, img_in, dcm_out in zip( d_paths['d_IO']['inputDCM'],
+                                        d_paths['d_IO']['inputIMG'],
+                                        d_paths['d_IO']['outputDCM']):
+        yield dcm_in, img_in, dcm_out
 
 def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
     """
@@ -253,6 +304,13 @@ def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
         bool: Do they both have the same file stem?
     """
     return True if imgfile.stem == dcmfile.stem else False
+
+def imagePaths_process(dcm_in:Path, img_in:Path, dcm_out:Path) -> None:
+    if imageNames_areSame(img_in, dcm_in):
+        image:Image.Image       = Image.open(str(img_in))
+        DICOM:pydicom.Dataset   = pydicom.dcmread(str(dcm_in))
+        LOG("Processing %s" % dcm_in)
+        image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
 
 @chris_plugin(
     parser          = parser,
@@ -274,21 +332,20 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
     :param outputdir: directory where to write output files
     """
     pudb.set_trace()
-    d_paths:dict[str, Any] = \
-        allIO_checkInputLengths(
-            allIO_unspool(options, inputdir, outputdir)
-        )
-    if not d_paths['status']:
-        LOG('Path length check failed! DICOM file list not equal length to IMG file list')
-        return 1
+    d_paths:dict[str, Any] = env_setupAndCheck(options, inputdir, outputdir)
+    mapper: Iterator[tuple[Path, Path, Path]] = files_unspool(d_paths)
 
-    for dcm_in, img_in, dcm_out in zip( d_paths['d_IO']['inputDCM'],
-                                        d_paths['d_IO']['inputIMG'],
-                                        d_paths['d_IO']['outputDCM']):
-        if imageNames_areSame(img_in, dcm_in):
-            image:Image.Image       = Image.open(str(img_in))
-            DICOM:pydicom.Dataset   = pydicom.dcmread(str(dcm_in))
-            image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
+    if int(options.thread):
+        with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity(0))) as pool:
+            results: Iterator[None]     = pool.map(lambda t: imagePaths_process(*t), mapper)
+
+        # raise any Exceptions which happened in threads
+        for _ in results:
+            pass
+    else:
+        for dcm_in, img_in, dcm_out in mapper:
+            imagePaths_process(dcm_in, img_in, dcm_out)
+
     return 0
 
 if __name__ == '__main__':
