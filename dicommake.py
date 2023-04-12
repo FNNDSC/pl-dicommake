@@ -115,8 +115,6 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
         samplesPerPixel:int = 1
         if 'RGB' in image.mode:
             np_image = np.array(image.getdata(), dtype=np.uint8)[:,:3]
-            # np_image: np.ndarray[Any, np.dtype[np.uint8]] = np.array(image.getdata(),
-                                                                # dtype = np.uint8)[:,:,3]
             interpretation  = 'RGB'
             samplesPerPixel = 3
         else:
@@ -386,7 +384,6 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
             pass
     else:
         for dcm_in, img_in, dcm_out in mapper:
-            pudb.set_trace()
             imagePaths_process(dcm_in, img_in, dcm_out)
 
     return 0
