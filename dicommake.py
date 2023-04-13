@@ -33,7 +33,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
