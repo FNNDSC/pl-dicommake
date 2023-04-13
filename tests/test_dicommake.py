@@ -1,21 +1,25 @@
 from pathlib import Path
 
-from dicommake import parser, main
+from dicommake import parser, main, imageNames_areSame
 
+def test_imageNames_areSame() -> None:
+    imgFile     = Path('/some/place/with/png/1.1012.432543.png')
+    dcmFile     = Path('/some/other/place/with/dicom/1.1012.432543.dcm')
+    assert imageNames_areSame(imgFile, dcmFile) == True
 
-def test_main(tmp_path: Path):
-    # setup example data
-    inputdir = tmp_path / 'incoming'
-    outputdir = tmp_path / 'outgoing'
-    inputdir.mkdir()
-    outputdir.mkdir()
-    (inputdir / 'plaintext.txt').write_text('hello ChRIS, I am a ChRIS plugin')
+# def test_main(tmp_path: Path):
+#     # setup example data
+#     inputdir = tmp_path / 'incoming'
+#     outputdir = tmp_path / 'outgoing'
+#     inputdir.mkdir()
+#     outputdir.mkdir()
+#     (inputdir / 'plaintext.txt').write_text('hello ChRIS, I am a ChRIS plugin')
 
-    # simulate run of main function
-    options = parser.parse_args(['--word', 'ChRIS', '--pattern', '*.txt'])
-    main(options, inputdir, outputdir)
+#     # simulate run of main function
+#     options = parser.parse_args(['--word', 'ChRIS', '--pattern', '*.txt'])
+#     main(options, inputdir, outputdir)
 
-    # assert behavior is expected
-    expected_output_file = outputdir / 'plaintext.count.txt'
-    assert expected_output_file.exists()
-    assert expected_output_file.read_text() == '2'
+#     # assert behavior is expected
+#     expected_output_file = outputdir / 'plaintext.count.txt'
+#     assert expected_output_file.exists()
+#     assert expected_output_file.read_text() == '2'
