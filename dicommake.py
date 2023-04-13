@@ -33,7 +33,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -134,7 +134,7 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     ds.HighBit                      = 7
     ds.PixelRepresentation          = 0
     ds.PixelData                    = np_image.tobytes()
-    # ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
+    ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
     # ds.SOPInstanceUID               = pydicom.uid.generate_uid()
     return ds
 
@@ -367,7 +367,7 @@ def imagePaths_process(*args) -> None:
         image:Image.Image       = Image.open(str(img_in))
         DICOM:pydicom.Dataset   = pydicom.dcmread(str(dcm_in))
         LOG("Processing %s using %s" % (dcm_in.name, img_in.name))
-        image_intoDICOMinsert2(image, DICOM).save_as(str(dcm_out))
+        image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
         LOG("Saved %s" % dcm_out)
 
 @chris_plugin(
@@ -398,7 +398,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
     Returns:
         int: 0 here means success.
     """
-    pudb.set_trace()
+    # pudb.set_trace()
     d_paths:dict[str, Any] = env_setupAndCheck(options, inputdir, outputdir)
     mapper: Iterator[tuple[Path, Path, Path]] = files_unspool(d_paths)
     if int(options.thread):
