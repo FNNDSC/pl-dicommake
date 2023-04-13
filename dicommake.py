@@ -13,6 +13,7 @@ from    functools           import partial
 import  os, sys
 import  pudb
 import  pydicom
+import  datetime
 os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 
 from    PIL                 import Image
@@ -33,7 +34,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.0.2'
+__version__ = '2.0.4'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -110,6 +111,9 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     Returns:
         pydicom.Dataset: a DICOM Dataset with the new image
     """
+    AcquisitionDate  = lambda : datetime.datetime.now().strftime('%Y%m%d')
+    AcquisitionTime  = lambda : datetime.datetime.now().strftime('%H%M%S')
+
     def npimage_get(image):
         interpretation:str  = ""
         samplesPerPixel:int = 1
@@ -134,8 +138,13 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     ds.HighBit                      = 7
     ds.PixelRepresentation          = 0
     ds.PixelData                    = np_image.tobytes()
+    ds.AcquisitionTime              = AcquisitionTime()
+    ds.AcquisitionDate              = AcquisitionDate()
     ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
     # ds.SOPInstanceUID               = pydicom.uid.generate_uid()
+
+    # NB! If this is not set, images will not render properly in Cornerstone
+    ds.PlanarConfiguration          = 0
     return ds
 
 def image_intoDICOMinsert2(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Dataset:
