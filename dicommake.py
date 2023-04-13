@@ -34,7 +34,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.0.4'
+__version__ = '2.2.0'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -146,35 +146,6 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
     return ds
-
-def image_intoDICOMinsert2(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Dataset:
-    """
-    Insert the "image" into the DICOM chassis "ds" and update/adapt
-    DICOM tags where necessary. Also create a new
-
-        SeriesInstanceUID
-        SOPInstanceUID
-
-    Args:
-        image (Image.Image): an input image
-        ds (pydicom.Dataset): a DICOM Dataset to house the image
-
-    Returns:
-        pydicom.Dataset: a DICOM Dataset with the new image
-    """
-    np_image = np.array(image.getdata(), dtype=np.uint8)[:,:3]
-    #    ds.SeriesInstanceUID = pydicom.uid.generate_uid()
-    ds.Rows = image.height
-    ds.Columns = image.width
-    ds.PhotometricInterpretation = "RGB"
-    ds.SamplesPerPixel = 3
-    ds.BitsStored = 8
-    ds.BitsAllocated = 8
-    ds.HighBit = 7
-    ds.PixelRepresentation = 0
-    ds.PixelData = np_image.tobytes()
-    return ds
-
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
     """
