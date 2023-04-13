@@ -21,7 +21,7 @@ Creating new DICOM files requires two fundamental preconditions: an _image_ and 
 * `inputdir` contains _I_ >= 1 _image_ files (typically `png` or `jpg`) -- moreover there is only _one_ type of image file (no mixing of `png` and `jpg`, for example);
 * `inputdir` contains _D_ >= 1 `DICOM` files;
 * importantly, the number of elements in each set of files is identical, i.e. _D_ = _I_
-* sorting the lists of _I_ and _D_ result in matched pairs such that the file _names_ of paired image and `DICOM` files are identical:
+* sorting the lists of _I_ and _D_ result in matched pairs such that the file _stems_ (names without extensions) of paired image and `DICOM` files are identical:
     * `forEach` _i_ ∈ _I_ `and` _d_ ∈ _D_ : `stem`(_i_) == `stem`(_d_);
 
 
