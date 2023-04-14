@@ -4,11 +4,11 @@
 [![MIT License](https://img.shields.io/github/license/fnndsc/pl-dicommake)](https://github.com/FNNDSC/pl-dicommake/blob/main/LICENSE)
 [![ci](https://github.com/FNNDSC/pl-dicommake/actions/workflows/ci.yml/badge.svg)](https://github.com/FNNDSC/pl-dicommake/actions/workflows/ci.yml)
 
-`pl-dicommake` is a [_ChRIS_](https://chrisproject.org/) _DS_ plugin that _makes_ new DICOM files from an old `DICOM` files and a new image files. The resultant new `DICOM` is simply the new image file packed into the old `DICOM` base, with necessary updates to the DICOM header.
+`pl-dicommake` is a [_ChRIS_](https://chrisproject.org/) _DS_ plugin that _makes_ new DICOM files from existing `DICOM` files and separate image files. Each resultant new `DICOM` is simply packaging the existing image file into the corresponding existing `DICOM` base, with necessary updates to the DICOM header. 
 
 ## Abstract
 
-Creating new DICOM files requires two fundamental preconditions: an _image_ and _metadata_. For this plugin, inputs are an _image_ and an existing DICOM file. The output is a new DICOM file with the _image_ embedded using most of the _metadata_ from the supplied DICOM. Where required, the new file's DICOM tags are changed to properly describe the image.
+Creating new DICOM files requires two fundamental preconditions: an _image_ and _metadata_. For this plugin, inputs are an _image_ and an existing DICOM file. The output is a new DICOM file with the _image_ embedded using most of the _metadata_ from the supplied DICOM. Where required, the new file's DICOM tags are changed to properly describe the image. Note that this plugin can operate over sets of input images -- one set of input `DICOM` files and a corresponding set of input image files. It is a required precondition that the file stem of each file in the `DICOM` set corresponds to a similar file stem in the image set.
 
 ## Installation
 
