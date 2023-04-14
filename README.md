@@ -4,7 +4,7 @@
 [![MIT License](https://img.shields.io/github/license/fnndsc/pl-dicommake)](https://github.com/FNNDSC/pl-dicommake/blob/main/LICENSE)
 [![ci](https://github.com/FNNDSC/pl-dicommake/actions/workflows/ci.yml/badge.svg)](https://github.com/FNNDSC/pl-dicommake/actions/workflows/ci.yml)
 
-`pl-dicommake` is a [_ChRIS_](https://chrisproject.org/) _DS_ plugin that _makes_ new DICOM files from existing `DICOM` files and separate image files. Each resultant new `DICOM` is simply packaging the existing image file into the corresponding existing `DICOM` base, with necessary updates to the DICOM header. 
+`pl-dicommake` is a [_ChRIS_](https://chrisproject.org/) _DS_ plugin that _makes_ new DICOM files from existing `DICOM` files and separate image files. Each new `DICOM` is simply the result of packing the existing image file into the corresponding existing `DICOM` base, with necessary updates to the DICOM header. 
 
 ## Abstract
 
