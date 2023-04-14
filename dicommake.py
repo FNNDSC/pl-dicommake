@@ -34,7 +34,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.2.0'
+__version__ = '2.2.2'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -141,7 +141,7 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     ds.AcquisitionTime              = AcquisitionTime()
     ds.AcquisitionDate              = AcquisitionDate()
     ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
-    # ds.SOPInstanceUID               = pydicom.uid.generate_uid()
+    ds.SOPInstanceUID               = pydicom.uid.generate_uid()
 
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
