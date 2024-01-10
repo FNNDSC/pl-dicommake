@@ -34,7 +34,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.2.4'
+__version__ = '2.2.6'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -200,7 +200,7 @@ def tree2tree_path_mapping(inputdir: Path, outputdir: Path,
     """
     return iter(
         PathMapper.file_mapper(
-            inputdir, outputdir, glob=input_glob, suffix=output_suffix
+            inputdir, outputdir, glob=input_glob, suffix=output_suffix, fail_if_empty=False
         )
     )
 
