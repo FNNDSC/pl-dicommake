@@ -19,6 +19,7 @@ os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 from    PIL                 import Image
 import  numpy               as      np
 from    loguru              import logger
+from pydicom.uid            import ExplicitVRLittleEndian
 LOG             = logger.debug
 logger_format = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
@@ -34,7 +35,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.2.6'
+__version__ = '2.2.8'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -137,6 +138,14 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     ds.BitsAllocated                = 8
     ds.HighBit                      = 7
     ds.PixelRepresentation          = 0
+
+    # The changes in `pfdcm` made to use `oxidicom` to receive PACS files from a server
+    # changes the TransferSyntaxUID of a DICOM file to 'lossy JPEG compression'. Since the image
+    # file itself isn't compressed, saving it as a DICOM file would throw error.
+    # The below fix handles this.
+    # We change the transfer syntax UID (https://github.com/pydicom/pydicom/issues/1109)
+    ds.PresentationLUTShape         = ''
+    ds.file_meta.TransferSyntaxUID  = ExplicitVRLittleEndian
     ds.PixelData                    = np_image.tobytes()
     ds.AcquisitionTime              = AcquisitionTime()
     ds.AcquisitionDate              = AcquisitionDate()
