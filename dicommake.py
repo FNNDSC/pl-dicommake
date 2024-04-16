@@ -35,7 +35,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.2.8'
+__version__ = '2.3.0'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -144,7 +144,6 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     # file itself isn't compressed, saving it as a DICOM file would throw error.
     # The below fix handles this.
     # We change the transfer syntax UID (https://github.com/pydicom/pydicom/issues/1109)
-    ds.PresentationLUTShape         = ''
     ds.file_meta.TransferSyntaxUID  = ExplicitVRLittleEndian
     ds.PixelData                    = np_image.tobytes()
     ds.AcquisitionTime              = AcquisitionTime()
