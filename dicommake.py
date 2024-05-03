@@ -35,7 +35,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.0'
+__version__ = '2.3.2'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -362,7 +362,7 @@ def imagePaths_process(*args) -> None:
     parser          = parser,
     title           = 'DICOM image make',
     category        = '',                   # ref. https://chrisstore.co/plugins
-    min_memory_limit= '4Gi',              # supported units: Mi, Gi
+    min_memory_limit= '8Gi',              # supported units: Mi, Gi
     min_cpu_limit   = '4000m',              # millicores, e.g. "1000m" = 1 CPU core
     min_gpu_limit   = 0                     # set min_gpu_limit=1 to enable GPU
 )
