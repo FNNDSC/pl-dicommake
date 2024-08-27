@@ -19,7 +19,9 @@ os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 from    PIL                 import Image
 import  numpy               as      np
 from    loguru              import logger
-from pydicom.uid            import ExplicitVRLittleEndian
+from pydicom.uid            import ExplicitVRLittleEndian,JPEG2000, JPEG2000Lossless
+import pylibjpeg
+from pydicom.uid import RLELossless
 LOG             = logger.debug
 logger_format = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
@@ -144,8 +146,10 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     # file itself isn't compressed, saving it as a DICOM file would throw error.
     # The below fix handles this.
     # We change the transfer syntax UID (https://github.com/pydicom/pydicom/issues/1109)
-    ds.file_meta.TransferSyntaxUID  = ExplicitVRLittleEndian
-    ds.PixelData                    = np_image.tobytes()
+    ds.PixelData = np_image.tobytes()
+    ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+
     ds.AcquisitionTime              = AcquisitionTime()
     ds.AcquisitionDate              = AcquisitionDate()
     ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
@@ -153,6 +157,13 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
 
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
+    ds.compress(RLELossless)
+    # Recompress the image data using JPEG2000
+    # compressed_pixel_data = pylibjpeg.encode(np_image.tobytes(), transfer_syntax='JPEG2000')
+
+    # Update the DICOM dataset
+    # ds.PixelData = compressed_pixel_data
+    ds.file_meta.TransferSyntaxUID = JPEG2000
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
