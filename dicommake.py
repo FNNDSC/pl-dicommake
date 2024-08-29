@@ -19,10 +19,8 @@ os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 from    PIL                 import Image
 import  numpy               as      np
 from    loguru              import logger
-from pydicom.uid            import ExplicitVRLittleEndian,JPEG2000, JPEG2000Lossless
-import pylibjpeg
-from pydicom.uid import RLELossless
-from pydicom.encaps import encapsulate
+from pydicom.uid            import ExplicitVRLittleEndian,RLELossless
+
 LOG             = logger.debug
 logger_format = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
@@ -38,7 +36,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.2'
+__version__ = '2.3.3'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -152,7 +150,7 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     # file itself isn't compressed, saving it as a DICOM file would throw error.
     # The below fix handles this.
     # We change the transfer syntax UID (https://github.com/pydicom/pydicom/issues/1109)
-    ds.PixelData = np_image.tobytes()
+    ds.PixelData                    = np_image.tobytes()
     ds.file_meta.TransferSyntaxUID  = ExplicitVRLittleEndian
     ds.AcquisitionTime              = AcquisitionTime()
     ds.AcquisitionDate              = AcquisitionDate()
