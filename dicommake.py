@@ -22,6 +22,7 @@ from    loguru              import logger
 from pydicom.uid            import ExplicitVRLittleEndian,JPEG2000, JPEG2000Lossless
 import pylibjpeg
 from pydicom.uid import RLELossless
+from pydicom.encaps import encapsulate
 LOG             = logger.debug
 logger_format = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
@@ -79,6 +80,11 @@ parser.add_argument(  '--pftelDB',
 parser.add_argument("--thread",
                     help        = "use threading to branch in parallel",
                     dest        = 'thread',
+                    action      = 'store_true',
+                    default     = False)
+parser.add_argument("--compress",
+                    help        = "if specified, compress the DICOM pixel data",
+                    dest        = 'compress',
                     action      = 'store_true',
                     default     = False)
 parser.add_argument('--version',
@@ -147,9 +153,7 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     # The below fix handles this.
     # We change the transfer syntax UID (https://github.com/pydicom/pydicom/issues/1109)
     ds.PixelData = np_image.tobytes()
-    ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
-
-
+    ds.file_meta.TransferSyntaxUID  = ExplicitVRLittleEndian
     ds.AcquisitionTime              = AcquisitionTime()
     ds.AcquisitionDate              = AcquisitionDate()
     ds.SeriesInstanceUID            = pydicom.uid.generate_uid()
@@ -157,13 +161,10 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
 
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
-    ds.compress(RLELossless)
-    # Recompress the image data using JPEG2000
-    # compressed_pixel_data = pylibjpeg.encode(np_image.tobytes(), transfer_syntax='JPEG2000')
 
-    # Update the DICOM dataset
-    # ds.PixelData = compressed_pixel_data
-    ds.file_meta.TransferSyntaxUID = JPEG2000
+    # Compress the pixel data
+    ds.compress(RLELossless)
+    ds.file_meta.TransferSyntaxUID = RLELossless
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
