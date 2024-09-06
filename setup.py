@@ -25,7 +25,7 @@ setup(
     author='FNNDSC',
     author_email='dev@babyMRI.org',
     url='https://github.com/FNNDSC/pl-dicommake',
-    py_modules=['dicommake'],
+    py_modules=['dicommake','jobController'],
     install_requires=['chris_plugin'],
     license='MIT',
     entry_points={

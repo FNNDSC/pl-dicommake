@@ -20,6 +20,9 @@ WORKDIR /usr/local/src/pl-dicommake
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+RUN apt-get update \
+    && apt-get install dcmtk -y
+
 
 COPY . .
 ARG extras_require=none

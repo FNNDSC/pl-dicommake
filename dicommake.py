@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from email.mime import image
+from    jobController       import jobber
 from    pathlib             import Path
 from    argparse            import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 
@@ -19,7 +19,7 @@ os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
 from    PIL                 import Image
 import  numpy               as      np
 from    loguru              import logger
-from pydicom.uid            import ExplicitVRLittleEndian,RLELossless
+from    pydicom.uid         import ExplicitVRLittleEndian
 
 LOG             = logger.debug
 logger_format = (
@@ -36,7 +36,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.4'
+__version__ = '2.3.6'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -103,7 +103,7 @@ def preamble_show(options: Namespace) -> None:
          LOG("%25s:  [%s]" % (k, v))
     LOG("")
 
-def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset, compress: bool) -> pydicom.Dataset:
+def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Dataset:
     """
     Insert the "image" into the DICOM chassis "ds" and update/adapt
     DICOM tags where necessary. Also create a new
@@ -159,11 +159,6 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset, compress: boo
 
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
-
-    if compress:
-        # Compress the pixel data
-        ds.compress(RLELossless)
-        ds.file_meta.TransferSyntaxUID = RLELossless
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
@@ -345,6 +340,28 @@ def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
     """
     return True if imgfile.stem == dcmfile.stem else False
 
+def compress_DICOM(image: Image.Image, ds: pydicom.Dataset, op_path: str):
+    """
+    Compress the final DICOM to JPEG lossless encoding using
+    `dcmcjpeg` , which is a library available in the `dcmtk`
+    package.
+    """
+    tmp_path = '/tmp/uncompressed.dcm'
+    image_intoDICOMinsert(image, ds).save_as(tmp_path)
+    LOG(f"Compressing final DICOM as {op_path}")
+    shell = jobber({'verbosity': 1, 'noJobLogging': True})
+    str_cmd = (f"dcmcjpeg"
+               f" {tmp_path}"
+               f" {op_path}")
+
+    d_response = shell.job_run(str_cmd)
+    LOG(f"Command: {d_response['cmd']}")
+    if d_response['returncode']:
+        LOG(f"Error: {d_response['stderr']}")
+        raise Exception(d_response["stderr"])
+    else:
+        LOG("Response: File compressed successfully.")
+
 def imagePaths_process(*args) -> None:
     """
     The input *args is a tuple that contains three
@@ -354,22 +371,28 @@ def imagePaths_process(*args) -> None:
     unpack the arguments in either case.
     """
     try:
-        dcm_in:Path  = args[0][0]
-        img_in:Path  = args[0][1]
-        dcm_out:Path = args[0][2]
+        dcm_in:Path     = args[0][0]
+        img_in:Path     = args[0][1]
+        dcm_out:Path    = args[0][2]
         b_compress:bool = args[0][3]
     except:
-        dcm_in:Path  = args[0]
-        img_in:Path  = args[1]
-        dcm_out:Path = args[2]
+        dcm_in:Path      = args[0]
+        img_in:Path      = args[1]
+        dcm_out:Path     = args[2]
         b_compress: bool = args[3]
 
     if imageNames_areSame(img_in, dcm_in):
         image:Image.Image       = Image.open(str(img_in))
         DICOM:pydicom.Dataset   = pydicom.dcmread(str(dcm_in))
         LOG("Processing %s using %s" % (dcm_in.name, img_in.name))
-        image_intoDICOMinsert(image, DICOM, b_compress).save_as(str(dcm_out))
+
+        if b_compress:
+            compress_DICOM(image, DICOM, str(dcm_out))
+        else:
+            image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
+
         LOG("Saved %s" % dcm_out)
+
 
 @chris_plugin(
     parser          = parser,
@@ -413,8 +436,8 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
         for _ in results:
             pass
     else:
-        for dcm_in, img_in, dcm_out in mapper:
-            imagePaths_process(dcm_in, img_in, dcm_out, options.compress)
+        for dcm_in, img_in, dcm_out, compress in mapper:
+            imagePaths_process(dcm_in, img_in, dcm_out, compress)
 
     return 0
 
