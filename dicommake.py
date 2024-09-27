@@ -36,7 +36,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.6'
+__version__ = '2.3.7'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
