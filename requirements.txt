@@ -1,4 +1,4 @@
-chris_plugin==0.1.2
+chris_plugin>=0.3.0
 pydicom
 Pillow
 numpy
