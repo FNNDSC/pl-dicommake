@@ -10,11 +10,13 @@ from    pftag               import pftag
 from    pflog               import pflog
 from    concurrent.futures  import ThreadPoolExecutor, ProcessPoolExecutor
 from    functools           import partial
+from    pytz                import timezone
 import  os, sys
 import  pudb
 import  pydicom
 import  datetime
 os.environ['XDG_CONFIG_HOME'] = '/tmp'  # For root/non root container sanity
+eastern = timezone('US/Eastern')
 
 from    PIL                 import Image
 import  numpy               as      np
@@ -36,7 +38,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.8'
+__version__ = '2.3.9'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -118,8 +120,8 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
     Returns:
         pydicom.Dataset: a DICOM Dataset with the new image
     """
-    AcquisitionDate  = lambda : datetime.datetime.now().strftime('%Y%m%d')
-    AcquisitionTime  = lambda : datetime.datetime.now().strftime('%H%M%S')
+    AcquisitionDate  = lambda : datetime.datetime.now(eastern).strftime('%Y%m%d')
+    AcquisitionTime  = lambda : datetime.datetime.now(eastern).strftime('%H%M%S')
 
     def npimage_get(image):
         interpretation:str  = ""

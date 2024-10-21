@@ -12,6 +12,9 @@
 # FROM docker.io/fnndsc/conda:python3.10.2-cuda11.6.0
 FROM docker.io/python:3.11.0-slim-bullseye
 
+# set timezone to EDT
+RUN ln -sf /usr/share/zoneinfo/America/New_York /etc/timezone
+
 LABEL org.opencontainers.image.authors="FNNDSC <dev@babyMRI.org>" \
       org.opencontainers.image.title="DICOM image make" \
       org.opencontainers.image.description="A ChRIS plugin that creates a new DICOM file from an existing DICOM and a new image"
