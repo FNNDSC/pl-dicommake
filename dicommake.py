@@ -38,7 +38,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.3.9'
+__version__ = '2.4.0'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -87,6 +87,11 @@ parser.add_argument("--compress",
                     dest        = 'compress',
                     action      = 'store_true',
                     default     = False)
+parser.add_argument("--appendToSeriesDescription",
+                    dest        = 'appendToSeriesDescription',
+                    default     = '',
+                    type        = str,
+                    help        = 'optional text to append to series description')
 parser.add_argument('--version',
                     action      = 'version',
                     version     = f'%(prog)s {__version__}')
@@ -105,7 +110,7 @@ def preamble_show(options: Namespace) -> None:
          LOG("%25s:  [%s]" % (k, v))
     LOG("")
 
-def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Dataset:
+def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset, str_append: str) -> pydicom.Dataset:
     """
     Insert the "image" into the DICOM chassis "ds" and update/adapt
     DICOM tags where necessary. Also create a new
@@ -161,6 +166,10 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset) -> pydicom.Da
 
     # NB! If this is not set, images will not render properly in Cornerstone
     ds.PlanarConfiguration          = 0
+
+    # Append the SeriesDescription with a given text
+    if str_append:
+        ds.SeriesDescription        += f"-{str_append}"
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
@@ -312,7 +321,7 @@ def allIO_findExplicitly(options: Namespace, inputdir: Path, outputdir: Path) \
     d_ret['outputIMG']     = [Path(y) for y in sorted([str(x) for x in l_outputIMG])]
     return d_ret
 
-def files_unspool(d_paths:dict[str, Any], compress: bool) -> Iterator[tuple[Path, Path, Path, bool]]:
+def files_unspool(d_paths:dict[str, Any], compress: bool, appendTxt: str) -> Iterator[tuple[Path, Path, Path, bool, str]]:
     """
     This implements an Iterator over the lists passed in d_paths, and is ultimately
     used as a mapper in the main method.
@@ -326,7 +335,7 @@ def files_unspool(d_paths:dict[str, Any], compress: bool) -> Iterator[tuple[Path
     for dcm_in, img_in, dcm_out in zip( d_paths['d_IO']['inputDCM'],
                                         d_paths['d_IO']['inputIMG'],
                                         d_paths['d_IO']['outputDCM']):
-        yield dcm_in, img_in, dcm_out, compress
+        yield dcm_in, img_in, dcm_out, compress, appendTxt
 
 def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
     """
@@ -342,14 +351,14 @@ def imageNames_areSame(imgfile:Path, dcmfile:Path) -> bool:
     """
     return True if imgfile.stem == dcmfile.stem else False
 
-def compress_DICOM(image: Image.Image, ds: pydicom.Dataset, op_path: str):
+def compress_DICOM(image: Image.Image, ds: pydicom.Dataset, op_path: str, str_append: str):
     """
     Compress the final DICOM to JPEG lossless encoding using
     `dcmcjpeg` , which is a library available in the `dcmtk`
     package.
     """
     tmp_path = '/tmp/uncompressed.dcm'
-    image_intoDICOMinsert(image, ds).save_as(tmp_path)
+    image_intoDICOMinsert(image, ds, str_append).save_as(tmp_path)
     LOG(f"Compressing final DICOM as {op_path}")
     shell = jobber({'verbosity': 1, 'noJobLogging': True})
     str_cmd = (f"dcmcjpeg"
@@ -377,11 +386,13 @@ def imagePaths_process(*args) -> None:
         img_in:Path     = args[0][1]
         dcm_out:Path    = args[0][2]
         b_compress:bool = args[0][3]
+        str_append:str  = args[0][4]
     except:
         dcm_in:Path      = args[0]
         img_in:Path      = args[1]
         dcm_out:Path     = args[2]
-        b_compress: bool = args[3]
+        b_compress:bool  = args[3]
+        str_append:str   = args[4]
 
     if imageNames_areSame(img_in, dcm_in):
         image:Image.Image       = Image.open(str(img_in))
@@ -389,9 +400,9 @@ def imagePaths_process(*args) -> None:
         LOG("Processing %s using %s" % (dcm_in.name, img_in.name))
 
         if b_compress:
-            compress_DICOM(image, DICOM, str(dcm_out))
+            compress_DICOM(image, DICOM, str(dcm_out), str_append)
         else:
-            image_intoDICOMinsert(image, DICOM).save_as(str(dcm_out))
+            image_intoDICOMinsert(image, DICOM, str_append).save_as(str(dcm_out))
 
         LOG("Saved %s" % dcm_out)
 
@@ -426,7 +437,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
     """
     # pudb.set_trace()
     d_paths:dict[str, Any] = env_setupAndCheck(options, inputdir, outputdir)
-    mapper: Iterator[tuple[Path, Path, Path, bool]] = files_unspool(d_paths, options.compress)
+    mapper: Iterator[tuple[Path, Path, Path, bool, str]] = files_unspool(d_paths, options.compress, options.appendToSeriesDescription)
     if int(options.thread):
         # While the "thread" implies "threading", we actually use
         # a ProcessPoolExecutor since the single threaded GIL actually
@@ -438,8 +449,8 @@ def main(options: Namespace, inputdir: Path, outputdir: Path) -> int:
         for _ in results:
             pass
     else:
-        for dcm_in, img_in, dcm_out, compress in mapper:
-            imagePaths_process(dcm_in, img_in, dcm_out, compress)
+        for dcm_in, img_in, dcm_out, compress, appendTxt in mapper:
+            imagePaths_process(dcm_in, img_in, dcm_out, compress, appendTxt)
 
     return 0
 
