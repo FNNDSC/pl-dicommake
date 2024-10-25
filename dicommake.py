@@ -38,7 +38,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.4.0'
+__version__ = '2.4.1'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -169,7 +169,7 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset, str_append: s
 
     # Append the SeriesDescription with a given text
     if str_append:
-        ds.SeriesDescription        += f"-{str_append}"
+        ds.SeriesDescription        += f" - {str_append}"
     return ds
 
 def doubly_map(x: PathMapper, y: PathMapper) -> Iterable[tuple[Path, Path, Path, Path]]:
