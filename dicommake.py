@@ -38,7 +38,7 @@ logger.add(sys.stderr, format=logger_format)
 
 
 
-__version__ = '2.4.4'
+__version__ = '2.4.5'
 
 DISPLAY_TITLE = r"""
        _           _ _                                     _
@@ -151,7 +151,11 @@ def image_intoDICOMinsert(image: Image.Image, ds: pydicom.Dataset, str_append: s
     ds.SOPInstanceUID = pydicom.uid.generate_uid()
 
     if str_append:
-        ds.SeriesDescription = f"{ds.SeriesDescription} - {str_append}"
+        try:
+            ds.SeriesDescription = f"{ds.SeriesDescription} - {str_append}"
+        except Exception as ex:
+            LOG(f"Exception occurred while modifying SeriesDescription: {ex}")
+            ds.SeriesDescription = str_append
 
     return ds
 
